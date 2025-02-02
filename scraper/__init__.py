@@ -87,3 +87,6 @@ class WebScraper:
 
     def close(self):
         self.driver.quit()
+        
+    def get_html_source(self):
+        return self.driver.page_source
