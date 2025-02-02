@@ -38,6 +38,7 @@ class WebScraper:
             logging.info(f"Elemento en {xpath} clickeado correctamente.")
         except (TimeoutException, ElementClickInterceptedException, StaleElementReferenceException) as e:
             logging.error(f"No se pudo hacer clic en el elemento en {xpath}: {e}")
+            self.driver.quit()
             
         return element_text
 
