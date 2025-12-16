@@ -19,25 +19,23 @@ def scrappUber(url):
         # extract tags and rating
         tags = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[1]').text_content()
         # extract address
-        address = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[3]').text_content()
+        xpathAddress = '//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[3]/span'
+        if page.locator(xpathAddress).count()> 0:
+            address = page.locator(xpathAddress).text_content()
+        else:
+            address = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[2]/span').text_content()
         # Schedule
         schedule = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[2]/div/div/div[2]/div[2]/section/div[2]/div').all_text_contents()
         
-        final = {
+        data = {
             'restaurantName': restaurantName,
             'tags': tags,
             'address': address,
             'schedule': schedule
         }
-        
-        print(final)
-        
-        input('Press Enter when you are ready to close the browser...')
+        print(data)
+    return data
 
-    return {
-        'restaurantName': restaurantName,
-        # 'tags': tags
-    } 
         
 
-page = scrappUber(uberStores[0])
+uberStores.apply(scrappUber)
