@@ -2,6 +2,7 @@ import pandas as pd
 from playwright.sync_api import sync_playwright
 import concurrent.futures
 import os
+from tqdm import tqdm
 
 data = pd.read_csv('results/complete_data_new.csv')
 uberStores = pd.Series(data.query('platform == "ubereats"').href.unique())
@@ -20,7 +21,17 @@ def process_uber_url(url, browser):
         # extract address
         xpathAddress = '//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[3]/span'
         if page.locator(xpathAddress).count() > 0:
-            address = page.locator(xpathAddress).text_content()
+            try:
+                # Intentar obtener el elemento con data-testid="rich-text"
+                address = page.locator(f'{xpathAddress}[data-testid="rich-text"]').text_content()
+            except Exception:
+                try:
+                    # Si hay múltiples elementos, usar first() como fallback
+                    address = page.locator(xpathAddress).first().text_content()
+                except Exception as e:
+                    print(f"Error extracting address from p[3]: {str(e)}")
+                    # Si falla, intentar con el selector alternativo
+                    address = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[2]/span').text_content()
         else:
             address = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[2]/span').text_content()
         # Schedule
@@ -44,9 +55,10 @@ def process_uber_url(url, browser):
 def process_batch(urls_batch):
     results = []
     with sync_playwright() as p:
-        browser = p.firefox.launch(headless=False)  # Puedes cambiar a True para modo headless
+        browser = p.firefox.launch(headless=True)  # Modo headless para mejor rendimiento
         try:
-            for url in urls_batch:
+            # Usar tqdm para mostrar progreso dentro del batch
+            for url in tqdm(urls_batch, desc="Batch progress", leave=False):
                 result = process_uber_url(url, browser)
                 if result:
                     results.append(result)
@@ -55,7 +67,7 @@ def process_batch(urls_batch):
     return results
 
 # Función principal para paralelizar el scraping
-def scrape_uber_parallel(urls, max_workers=4, batch_size=5):
+def scrape_uber_parallel(urls, max_workers=8, batch_size=50):
     """
     Paraleliza el scraping de URLs de Uber
     
@@ -69,20 +81,41 @@ def scrape_uber_parallel(urls, max_workers=4, batch_size=5):
     """
     all_results = []
     
+    # Mostrar información sobre el procesamiento
+    total_urls = len(urls)
+    print(f"Procesando {total_urls} URLs con {max_workers} workers en lotes de {batch_size}")
+    
     # Dividir las URLs en lotes
     url_batches = []
     urls_list = urls.tolist()
     for i in range(0, len(urls_list), batch_size):
         url_batches.append(urls_list[i:i+batch_size])
     
-    # Procesar los lotes en paralelo
+    # Mostrar barra de progreso para los lotes
+    print(f"Total de lotes: {len(url_batches)}")
+    
+    # Procesar los lotes en paralelo con barra de progreso
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        batch_results = list(executor.map(process_batch, url_batches))
+        # Crear un mapa de futuros
+        futures = {executor.submit(process_batch, batch): i for i, batch in enumerate(url_batches)}
+        
+        # Usar tqdm para mostrar el progreso general
+        batch_results = []
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(url_batches), desc="Overall progress"):
+            batch_index = futures[future]
+            try:
+                result = future.result()
+                batch_results.append(result)
+                print(f"Lote {batch_index+1}/{len(url_batches)} completado")
+            except Exception as e:
+                print(f"Error en lote {batch_index+1}: {str(e)}")
     
     # Aplanar los resultados
     for batch in batch_results:
-        all_results.extend(batch)
+        if batch:  # Verificar que el batch no sea None
+            all_results.extend(batch)
     
+    print(f"Procesamiento completado. Se obtuvieron datos de {len(all_results)}/{total_urls} URLs")
     return all_results
 
 # Mantener la función original para compatibilidad
@@ -119,4 +152,4 @@ def scrappUber(url):
 uber_results = scrape_uber_parallel(uberStores)
 
 # Si necesitas convertir los resultados a DataFrame:
-# uber_df = pd.DataFrame(uber_results)
+uber_df = pd.DataFrame(uber_results)
