@@ -19,35 +19,33 @@ def process_uber_url(url, browser):
         # extract tags and rating
         tags = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[1]').text_content()
         # extract address
-        xpathAddress = '//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[3]/span'
-        if page.locator(xpathAddress).count() > 0:
-            try:
-                # Intentar obtener el elemento con data-testid="rich-text"
-                address = page.locator(f'{xpathAddress}[data-testid="rich-text"]').text_content()
-            except Exception:
-                try:
-                    # Si hay múltiples elementos, usar first() como fallback
-                    address = page.locator(xpathAddress).first().text_content()
-                except Exception as e:
-                    print(f"Error extracting address from p[3]: {str(e)}")
-                    # Si falla, intentar con el selector alternativo
-                    address = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[2]/span').text_content()
-        else:
-            address = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[2]/span').text_content()
-        # Schedule
-        schedule = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[2]/div/div/div[2]/div[2]/section/div[2]/div').all_text_contents()
+        try:
+            address = page.locator("//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[2]/div/div/div[2]/div[2]/section/ul/button[1]/div[2]/div[1]").inner_text()
+            # Schedule
+            schedule = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[2]/div/div/div[2]/div[2]/section/div[2]/div').all_text_contents()[0]
+        except:
+            address = page.locator("//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[2]/div/div/div[3]/div/section/ul/button[1]/div[2]/div[1]").inner_text()
+            schedule = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[2]/div/div/div[3]/div/section/div[2]/div').all_text_contents()[0]
+
         
         data = {
+            'href': url,
             'restaurantName': restaurantName,
             'tags': tags,
             'address': address,
             'schedule': schedule
         }
-        print(f"Processed: {url}")
+        
         return data
-    except Exception as e:
-        print(f"Error processing {url}: {str(e)}")
-        return None
+    except Exception as e:        
+        data = {
+            'href': url,
+            'restaurantName': None,
+            'tags': None,
+            'address': None,
+            'schedule': None
+        }
+        return data
     finally:
         page.close()
 
@@ -67,7 +65,7 @@ def process_batch(urls_batch):
     return results
 
 # Función principal para paralelizar el scraping
-def scrape_uber_parallel(urls, max_workers=8, batch_size=50):
+def scrape_uber_parallel(urls, max_workers=8, batch_size=30):
     """
     Paraleliza el scraping de URLs de Uber
     
@@ -118,38 +116,11 @@ def scrape_uber_parallel(urls, max_workers=8, batch_size=50):
     print(f"Procesamiento completado. Se obtuvieron datos de {len(all_results)}/{total_urls} URLs")
     return all_results
 
-# Mantener la función original para compatibilidad
-def scrappUber(url):
-    with sync_playwright() as p:
-        browser = p.firefox.launch(headless=False)
-        page = browser.new_page()
-        page.goto(url, wait_until="domcontentloaded")
-        
-        # Extract restaurant name
-        restaurantName = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/h1').text_content()
-        # extract tags and rating
-        tags = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[1]').text_content()
-        # extract address
-        xpathAddress = '//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[3]/span'
-        if page.locator(xpathAddress).count()> 0:
-            address = page.locator(xpathAddress).text_content()
-        else:
-            address = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[1]/div/div[3]/div/div/div[1]/div/p[2]/span').text_content()
-        # Schedule
-        schedule = page.locator('//html/body/div[1]/div[3]/div[1]/div[2]/main/div/div[2]/div/div/div[2]/div[2]/section/div[2]/div').all_text_contents()
-        
-        data = {
-            'restaurantName': restaurantName,
-            'tags': tags,
-            'address': address,
-            'schedule': schedule
-        }
-        print(data)
-    return data
 
-# Reemplazar la línea original con la versión paralela
-# uberStores.apply(scrappUber)
+
+
 uber_results = scrape_uber_parallel(uberStores)
 
 # Si necesitas convertir los resultados a DataFrame:
 uber_df = pd.DataFrame(uber_results)
+uber_df.to_csv('results/uber_results2.csv', index=False)
